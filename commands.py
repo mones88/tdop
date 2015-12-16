@@ -1,9 +1,4 @@
-import tidalapi
-
-
 class Commands:
-
-    session = None
 
     def __init__(self, session):
         self.session = session
@@ -42,7 +37,6 @@ class Commands:
         for track in tracks:
             result["tracks"].append(self.track_to_json(track))
         return result
-
 
     def search(self, query):
         searches = {
