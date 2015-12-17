@@ -5,6 +5,7 @@ import sys
 import tidalapi
 import commands
 import interface
+import mpd
 
 try:
     configFilePath = os.path.expanduser("~/.config/tdop/tdopd.conf")
@@ -49,7 +50,12 @@ else:
 session = tidalapi.Session(tidalapi.Config(quality))
 if session.login(username, password):
     print("Logged on TIDAL correctly!")
-    commands = commands.Commands(session)
+
+    mpd_client = mpd.MPDClient()
+    mpd_client.connect("127.0.0.1", 6600)
+    mpd_client.clear()
+
+    commands = commands.Commands(session, mpd_client)
 
 while 1:
     conn, addr = s.accept()
@@ -59,5 +65,6 @@ while 1:
     # thread = threading.Thread(target=interface.handle_commands, args=(conn, session))
     # thread.start()
 
+mpd_client.disconnect()
 s.close()
 

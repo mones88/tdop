@@ -1,3 +1,5 @@
+from uuid import UUID
+
 class Commands:
     def __init__(self, session, mpd):
         self.session = session
@@ -10,7 +12,7 @@ class Commands:
             "title": track.name,
             "album": track.album.name,
             "duration": track.duration,
-            "uri": "",  # todo
+            "uri": str(track.id),
             "available": track.available,
             "popularity": track.popularity,
             "index": track.id
@@ -20,18 +22,20 @@ class Commands:
         result = {"playlists": []}
         playlists = self.session.get_user_playlists(self.session.user.id)
         for playlist in playlists:
+            playlist_id = str(int(UUID(playlist.id)))
             result["playlists"].append({
                 "type": "playlist",
                 "name": playlist.name,
                 "tracks": playlist.num_tracks,
                 "offline": False,
-                "index": playlist.id
+                "index": playlist_id
             })
         return result
 
     def list_tracks(self, playlist_id):
-        playlist = self.session.get_playlist(playlist_id)
-        tracks = self.session.get_playlist_tracks(playlist_id)
+        playlist_guid = UUID(int=int(playlist_id))
+        playlist = self.session.get_playlist(playlist_guid)
+        tracks = self.session.get_playlist_tracks(playlist_guid)
         result = {"name": playlist.name,
                   "tracks": []}
         for track in tracks:
@@ -73,9 +77,10 @@ class Commands:
         result["total_playlists"] = len(searches["playlists"].playlists)
         result["playlists"] = []
         for playlist in searches["playlists"].playlists:
+            playlist_id = int(UUID(playlist.id))
             result["playlists"].append({
                 "name": playlist.name,
-                "uri": playlist.id
+                "uri": playlist_id
             })
 
         return result
@@ -96,7 +101,7 @@ class Commands:
             "shuffle": mpd_status["random"] == "1",
             "total_tracks": int(mpd_status["playlistlength"])
         }
-        if mpd_status["status"] != "stop":
+        if mpd_status["state"] != "stop":
             duration = 0
             position = 0
             result.update({
@@ -111,3 +116,39 @@ class Commands:
             })
 
         return result
+
+    def idle(self):
+        return {}
+
+    def play_playlist(self, playlist_id):
+        self.add_playlist(playlist_id)
+        self.mpd.play(1)
+        return self.status()
+
+    def clear_queue(self):
+        self.mpd.clear()
+        return self.status()
+
+    def add_playlist(self, playlist_id):
+        playlist_guid = UUID(int=int(playlist_id))
+        self.mpd.command_list_ok_begin()
+        tracks = self.session.get_playlist_tracks(playlist_guid)
+        for track in tracks:
+            url = self.session.get_media_url(track.id)
+            self.mpd.add(url)
+
+        self.mpd.command_list_end()
+        return {"total_tracks": len(self.mpd.playlistinfo())}
+
+    def add_track(self, playlist_id, track_id):
+        track_url = self.session.get_media_url(track_id)
+        self.mpd.add(track_url)
+        return {"total_tracks": len(self.mpd.playlistinfo())}
+
+    def play(self):
+        self.mpd.play()
+        return self.status()
+
+    def goto_nb(self, track_nr):
+        self.mpd.play(int(track_nr) - 1)
+        return self.status()
