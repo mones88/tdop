@@ -1,6 +1,7 @@
 import os
 import json
 import sys
+import commands
 
 '''
     { "help",    CT_FUNC, { help, {CA_NONE}}, "list all available commands"},
@@ -52,11 +53,15 @@ import sys
 '''
 
 
-def route_ls(commands, params):
+def route_ls(commands_instance, params):
     if len(params) == 0:
-        return commands.list_playlists()
+        return commands_instance.list_playlists()
     else:
-        return commands.list_tracks(params[0])
+        return commands_instance.list_tracks(params[0])
+
+
+def call_fn(commands_instance, func, params):
+    return func(commands_instance, *params)
 
 
 accepted_params = {
@@ -82,26 +87,39 @@ def read_socket_line(socket):
         yield buffer
 
 
-def handle_commands(conn, commands):
+def find_function_by_name(func_name):
+    f = globals().get(func_name, None)
+    if f is None:
+        f = commands.Commands.__dict__.get(func_name, None)
+
+    return f
+
+
+def handle_commands(conn, commands_instance):
     for data in read_socket_line(conn):
         data = data.split()
-        cmd = data[0]
+        cmd = data[0] if len(data) > 0 else ""
         if cmd.startswith("bye"):
             conn.close()
             break
         elif cmd.startswith("quit"):
             sys.exit(0)
         else:
-            funcName = accepted_params.get(cmd, None)
-            params = data[1:]
-            func = globals().get(funcName, None)
-            func(*params)
-            '''func = accepted_params.get(cmd, None)
-            if func is not None:
-                json_string = json.dumps((func(commands, params))) + os.linesep
-                conn.send(json_string.encode())
+            func_name = accepted_params.get(cmd, None)
+            if func_name is None:
+                print("Unknown command received:", cmd)
+                json_err = ("{ \"error\": \"unknown command\" }" + os.linesep).encode()
+                conn.send(json_err)
             else:
-                print("Unknown command received:", cmd)'''
+                params = data[1:]
+                func = find_function_by_name(func_name)
+                if func.__module__ == "commands":
+                    result = call_fn(commands_instance, func, params)
+                else:
+                    result = func(commands_instance, params)
+
+                json_string = json.dumps(result) + os.linesep
+                conn.send(json_string.encode())
 
     # came out of loop
     conn.close()

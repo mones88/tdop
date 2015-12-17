@@ -1,20 +1,20 @@
 class Commands:
-
-    def __init__(self, session):
+    def __init__(self, session, mpd):
         self.session = session
+        self.mpd = mpd
 
     @staticmethod
     def track_to_json(track):
         return {
-                "artist": track.artist.name,
-                "title": track.name,
-                "album": track.album.name,
-                "duration": track.duration,
-                "uri": "",  # todo
-                "available": track.available,
-                "popularity": track.popularity,
-                "index": track.id
-            }
+            "artist": track.artist.name,
+            "title": track.name,
+            "album": track.album.name,
+            "duration": track.duration,
+            "uri": "",  # todo
+            "available": track.available,
+            "popularity": track.popularity,
+            "index": track.id
+        }
 
     def list_playlists(self):
         result = {"playlists": []}
@@ -76,6 +76,38 @@ class Commands:
             result["playlists"].append({
                 "name": playlist.name,
                 "uri": playlist.id
+            })
+
+        return result
+
+    def status(self):
+        # PLAY {'consume': '0', 'mixrampdelay': '1.#QNAN0', 'state': 'play', 'random': '0', 'songid': '2', 'time': '11:176', 'audio': '44100:24:2', 'playlist': '10', 'song': '0', 'volume': '15', 'single': '0', 'playlistlength': '1', 'repeat': '0', 'xfade': '0', 'elapsed': '11.053', 'mixrampdb': '0.000000', 'bitrate': '128'}
+        # STOP {'xfade': '0', 'playlistlength': '1', 'song': '0', 'playlist': '10', 'mixrampdb': '0.000000', 'consume': '0', 'repeat': '0', 'volume': '-1', 'single': '0', 'mixrampdelay': '1.#QNAN0', 'random': '0', 'state': 'stop', 'songid': '2'}
+        # PAUS {'bitrate': '192', 'time': '76:224', 'mixrampdelay': '1.#QNAN0', 'single': '0', 'mixrampdb': '0.000000', 'elapsed': '76.344', 'xfade': '0', 'song': '1', 'repeat': '0', 'state': 'pause', 'songid': '3', 'volume': '-1', 'consume': '0', 'playlistlength': '2', 'random': '0', 'audio': '44100:24:2', 'playlist': '11'}
+        mpd_status = self.mpd.status()
+        stateMap = {
+            "play": "playing",
+            "pause": "paused",
+            "stop": "stopped"
+        }
+        result = {
+            "status": stateMap[mpd_status["state"]],
+            "repeat": mpd_status["repeat"] == "1",
+            "shuffle": mpd_status["random"] == "1",
+            "total_tracks": int(mpd_status["playlistlength"])
+        }
+        if mpd_status["status"] != "stop":
+            duration = 0
+            position = 0
+            result.update({
+                "current_track": int(mpd_status["song"]),
+                "artist": "",
+                "title": "",
+                "album": "",
+                "duration": duration,
+                "position": position,
+                "uri": "",  # todo
+                "popularity": 0  # todo
             })
 
         return result

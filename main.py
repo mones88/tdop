@@ -9,11 +9,12 @@ import interface
 try:
     configFilePath = os.path.expanduser("~/.config/tdop/tdopd.conf")
     config = configparser.ConfigParser()
+    config.read(configFilePath)
     username = config["tdop"]["tidal_username"]
     password = config["tdop"]["tidal_password"]
     quality = config["tdop"]["quality"]
     host = config["tdop"]["listen_address"]
-    port = config["tdop"]["listen_port"]
+    port = int(config["tdop"]["listen_port"])
 except KeyError:
     print("Config file not found or invalid!")
     sys.exit(1)
@@ -49,12 +50,11 @@ session = tidalapi.Session(tidalapi.Config(quality))
 if session.login(username, password):
     print("Logged on TIDAL correctly!")
     commands = commands.Commands(session)
-#    cmd = commands.Commands(session)
-#    print(json.dumps(cmd.search("Photos of ghosts")))
 
 while 1:
     conn, addr = s.accept()
     print('Connected with ' + addr[0] + ':' + str(addr[1]))
+    conn.sendall("tdop 0.0.1\n".encode())
     interface.handle_commands(conn, commands)
     # thread = threading.Thread(target=interface.handle_commands, args=(conn, session))
     # thread.start()
