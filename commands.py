@@ -90,13 +90,13 @@ class Commands:
         # STOP {'xfade': '0', 'playlistlength': '1', 'song': '0', 'playlist': '10', 'mixrampdb': '0.000000', 'consume': '0', 'repeat': '0', 'volume': '-1', 'single': '0', 'mixrampdelay': '1.#QNAN0', 'random': '0', 'state': 'stop', 'songid': '2'}
         # PAUS {'bitrate': '192', 'time': '76:224', 'mixrampdelay': '1.#QNAN0', 'single': '0', 'mixrampdb': '0.000000', 'elapsed': '76.344', 'xfade': '0', 'song': '1', 'repeat': '0', 'state': 'pause', 'songid': '3', 'volume': '-1', 'consume': '0', 'playlistlength': '2', 'random': '0', 'audio': '44100:24:2', 'playlist': '11'}
         mpd_status = self.mpd.status()
-        stateMap = {
+        state_map = {
             "play": "playing",
             "pause": "paused",
             "stop": "stopped"
         }
         result = {
-            "status": stateMap[mpd_status["state"]],
+            "status": state_map[mpd_status["state"]],
             "repeat": mpd_status["repeat"] == "1",
             "shuffle": mpd_status["random"] == "1",
             "total_tracks": int(mpd_status["playlistlength"])
@@ -151,4 +151,30 @@ class Commands:
 
     def goto_nb(self, track_nr):
         self.mpd.play(int(track_nr) - 1)
+        return self.status()
+
+    def repeat(self):
+        current_status = self.status()
+        toggled_repeat_value = not current_status["repeat"]
+        current_status["repeat"] = toggled_repeat_value
+        self.mpd.repeat(1 if toggled_repeat_value else 0)
+        return current_status
+
+    def shuffle(self):
+        current_status = self.status()
+        toggled_shuffle_value = not current_status["shuffle"]
+        current_status["shuffle"] = toggled_shuffle_value
+        self.mpd.random(1 if toggled_shuffle_value else 0)
+        return current_status
+
+    def stop(self):
+        self.mpd.stop()
+        return self.status()
+
+    def goto_next(self):
+        self.mpd.next()
+        return self.status()
+
+    def goto_prev(self):
+        self.mpd.previous()
         return self.status()

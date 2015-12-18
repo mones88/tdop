@@ -11,8 +11,8 @@ import commands
 
 { "status",  CT_FUNC, { status,  {CA_NONE}}, "display informations about the queue, the current track, etc."},
     { "notify",  CT_FUNC, { notify,  {CA_NONE}}, "unlock all the currently idle sessions, just like if something had changed"},
-    { "repeat",  CT_FUNC, { repeat,  {CA_NONE}}, "toggle repeat mode"},
-    { "shuffle", CT_FUNC, { shuffle, {CA_NONE}}, "toggle shuffle mode"},
+{ "repeat",  CT_FUNC, { repeat,  {CA_NONE}}, "toggle repeat mode"},
+{ "shuffle", CT_FUNC, { shuffle, {CA_NONE}}, "toggle shuffle mode"},
 
     { "qls",     CT_FUNC, { list_queue,         {CA_NONE}}, "list the contents of the queue"},
 { "qclear",  CT_FUNC, { clear_queue,        {CA_NONE}}, "clear the contents of the queue"},
@@ -20,18 +20,18 @@ import commands
     { "qrm",     CT_FUNC, { remove_queue_items, {CA_INT, CA_INT}}, "remove tracks arg1 to arg2 from the queue"},
 
 { "play",    CT_FUNC, { play_playlist, {CA_INT, CA_NONE}}, "replace the contents of the queue with playlist arg1 and start playing"},
-    { "play",    CT_FUNC, { play_track,    {CA_INT, CA_INT}}, "replace the contents of the queue with track arg1 from playlist arg2 and start playing" },
+{ "play",    CT_FUNC, { play_track,    {CA_INT, CA_INT}}, "replace the contents of the queue with track arg1 from playlist arg2 and start playing" },
 
 { "add",     CT_FUNC, { add_playlist, {CA_INT, CA_NONE}}, "add playlist number arg1 to the queue"},
 { "add",     CT_FUNC, { add_track,    {CA_INT, CA_INT}}, "add track number arg1 from playlist number arg2 to the queue" },
 
-    { "play",    CT_FUNC, { play,   {CA_NONE}}, "start playing from the queue"},
+{ "play",    CT_FUNC, { play,   {CA_NONE}}, "start playing from the queue"},
     { "toggle",  CT_FUNC, { toggle, {CA_NONE}}, "toggle pause mode"},
-    { "stop",    CT_FUNC, { stop,   {CA_NONE}}, "stop playback"},
+{ "stop",    CT_FUNC, { stop,   {CA_NONE}}, "stop playback"},
     { "seek",    CT_FUNC, { seek,   {CA_INT, CA_NONE}}, "go to position arg1 (in milliseconds) in the current track"},
 
-    { "next",    CT_FUNC, { goto_next, {CA_NONE}}, "switch to the next track in the queue"},
-    { "prev",    CT_FUNC, { goto_prev, {CA_NONE}}, "switch to the previous track in the queue"},
+{ "next",    CT_FUNC, { goto_next, {CA_NONE}}, "switch to the next track in the queue"},
+{ "prev",    CT_FUNC, { goto_prev, {CA_NONE}}, "switch to the previous track in the queue"},
 { "goto",    CT_FUNC, { goto_nb,   {CA_INT, CA_NONE}}, "switch to track number arg1 in the queue"},
 
     { "offline-status", CT_FUNC, { offline_status, {CA_NONE}}, "display informations about the current status of the offline cache (number of offline playlists, sync status...)"},
@@ -90,7 +90,12 @@ accepted_params = {
     "play": "route_play",
     "qclear": "clear_queue",
     "add": "route_add",
-    "goto": "goto_nb"
+    "goto": "goto_nb",
+    "repeat": "repeat",
+    "shuffle": "shuffle",
+    "stop": "stop",
+    "next": "goto_next",
+    "prev": "goto_prev"
 }
 
 
