@@ -144,7 +144,7 @@ def handle_commands(conn, commands_instance):
             if func_name is None:
                 print("Unknown command received:", cmd)
                 json_err = ("{ \"error\": \"unknown command\" }" + os.linesep).encode()
-                conn.send(json_err)
+                conn.sendall(json_err)
             else:
                 params = data[1:]
                 func = find_function_by_name(func_name)
@@ -155,7 +155,7 @@ def handle_commands(conn, commands_instance):
 
                 if result is not None:
                     json_string = json.dumps(result) + os.linesep
-                    conn.send(json_string.encode())
+                    conn.sendall(json_string.encode())
 
     # came out of loop
     conn.close()

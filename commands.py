@@ -1,5 +1,6 @@
 from uuid import UUID
 
+
 class Commands:
     def __init__(self, session, mpd):
         self.session = session
@@ -118,7 +119,8 @@ class Commands:
         return result
 
     def idle(self):
-        return {}
+        #  runeui calls 'status' continuously, so there should be no need implementing 'idle'
+        pass
 
     def play_playlist(self, playlist_id):
         self.add_playlist(playlist_id)
