@@ -2,6 +2,7 @@ import os
 import json
 import sys
 import commands
+from rx import Observable, Observer
 
 '''
     { "help",    CT_FUNC, { help, {CA_NONE}}, "list all available commands"},
@@ -100,20 +101,24 @@ accepted_params = {
 
 
 def read_socket_line(socket):
-    buffer = socket.recv(4096).decode()
-    buffering = True
-    while buffering:
-        if os.linesep in buffer:
-            (line, buffer) = buffer.split(os.linesep, 1)
-            yield line
-        else:
-            more = socket.recv(4096).decode()
-            if not more:
-                buffering = False
+    def on_subscribe(subscriber):
+        buffer = socket.recv(4096).decode()
+        buffering = True
+        while buffering:
+            if os.linesep in buffer:
+                (line, buffer) = buffer.split(os.linesep, 1)
+                subscriber.on_next(line)
             else:
-                buffer += more
-    if buffer:
-        yield buffer
+                more = socket.recv(4096).decode()
+                if not more:
+                    buffering = False
+                else:
+                    buffer += more
+        if buffer:
+            subscriber.on_next(buffer)
+        pass
+
+    return Observable.create(on_subscribe)
 
 
 def find_function_by_name(func_name):
@@ -125,18 +130,17 @@ def find_function_by_name(func_name):
 
 
 def debug_msg(data):
-    if not (data.startswith("idle") or data.startswith("status")):
-        print("RECV", data)
+    # if not (data.startswith("idle") or data.startswith("status")):
+    print("RECV", data)
 
 
 def handle_commands(conn, commands_instance):
-    for data in read_socket_line(conn):
+    def on_new_line(data):
         debug_msg(data)
         data = data.split()
         cmd = data[0] if len(data) > 0 else ""
         if cmd.startswith("bye"):
             conn.close()
-            break
         elif cmd.startswith("quit"):
             sys.exit(0)
         else:
@@ -156,6 +160,11 @@ def handle_commands(conn, commands_instance):
                 if result is not None:
                     json_string = json.dumps(result) + os.linesep
                     conn.sendall(json_string.encode())
+        pass
+
+    read_socket_line(conn).subscribe(on_next=on_new_line)
+
+
 
     # came out of loop
     conn.close()

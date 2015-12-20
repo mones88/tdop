@@ -87,7 +87,9 @@ class Commands:
         return result
 
     def status(self):
-        # PLAY {'consume': '0', 'mixrampdelay': '1.#QNAN0', 'state': 'play', 'random': '0', 'songid': '2', 'time': '11:176', 'audio': '44100:24:2', 'playlist': '10', 'song': '0', 'volume': '15', 'single': '0', 'playlistlength': '1', 'repeat': '0', 'xfade': '0', 'elapsed': '11.053', 'mixrampdb': '0.000000', 'bitrate': '128'}
+        # PLAY {'consume': '0', 'mixrampdelay': '1.#QNAN0', 'state': 'play', 'random': '0', 'songid': '2', 'time': '11:176',
+        # 'audio': '44100:24:2', 'playlist': '10', 'song': '0', 'volume': '15', 'single': '0', 'playlistlength': '1', 'repeat': '0', 'xfade': '0', 'elapsed': '11.053', 'mixrampdb': '0.000000', 'bitrate': '128'}
+
         # STOP {'xfade': '0', 'playlistlength': '1', 'song': '0', 'playlist': '10', 'mixrampdb': '0.000000', 'consume': '0', 'repeat': '0', 'volume': '-1', 'single': '0', 'mixrampdelay': '1.#QNAN0', 'random': '0', 'state': 'stop', 'songid': '2'}
         # PAUS {'bitrate': '192', 'time': '76:224', 'mixrampdelay': '1.#QNAN0', 'single': '0', 'mixrampdb': '0.000000', 'elapsed': '76.344', 'xfade': '0', 'song': '1', 'repeat': '0', 'state': 'pause', 'songid': '3', 'volume': '-1', 'consume': '0', 'playlistlength': '2', 'random': '0', 'audio': '44100:24:2', 'playlist': '11'}
         mpd_status = self.mpd.status()
@@ -119,8 +121,8 @@ class Commands:
         return result
 
     def idle(self):
-        #  runeui calls 'status' continuously, so there should be no need implementing 'idle'
-        pass
+        self.mpd.idle()
+        return self.status()
 
     def play_playlist(self, playlist_id):
         self.add_playlist(playlist_id)
@@ -138,13 +140,13 @@ class Commands:
         for track in tracks:
             url = self.session.get_media_url(track.id)
             self.mpd.add(url)
-
         self.mpd.command_list_end()
         return {"total_tracks": len(self.mpd.playlistinfo())}
 
     def add_track(self, playlist_id, track_id):
         track_url = self.session.get_media_url(track_id)
-        self.mpd.add(track_url)
+        mpd_track_id = self.mpd.addid(track_url)
+        self.mpd.addtagid(mpd_track_id, "Artist", "Dream Theater")
         return {"total_tracks": len(self.mpd.playlistinfo())}
 
     def play(self):

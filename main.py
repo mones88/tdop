@@ -2,6 +2,7 @@ import configparser
 import os.path
 import socket
 import sys
+import threading
 import tidalapi
 import commands
 import interface
@@ -61,9 +62,8 @@ while 1:
     conn, addr = s.accept()
     print('Connected with ' + addr[0] + ':' + str(addr[1]))
     conn.sendall("tdop 0.0.1\n".encode())
-    interface.handle_commands(conn, commands)
-    # thread = threading.Thread(target=interface.handle_commands, args=(conn, session))
-    # thread.start()
+    thread = threading.Thread(target=interface.handle_commands, args=(conn, commands))
+    thread.start()
 
 mpd_client.disconnect()
 s.close()
