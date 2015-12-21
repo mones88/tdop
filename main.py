@@ -6,7 +6,7 @@ import threading
 import tidalapi
 import commands
 import interface
-import mpd
+import tracklist
 
 try:
     configFilePath = os.path.expanduser("~/.config/tdop/tdopd.conf")
@@ -51,12 +51,12 @@ else:
 session = tidalapi.Session(tidalapi.Config(quality))
 if session.login(username, password):
     print("Logged on TIDAL correctly!")
+else:
+    print("Can't login to TIDAL!")
+    exit(1)
 
-    mpd_client = mpd.MPDClient()
-    mpd_client.connect("127.0.0.1", 6600)
-    mpd_client.clear()
-
-    commands = commands.Commands(session, mpd_client)
+playlist = tracklist.Tracklist()
+commands = commands.Commands(session, playlist)
 
 while 1:
     conn, addr = s.accept()
@@ -65,6 +65,5 @@ while 1:
     thread = threading.Thread(target=interface.handle_commands, args=(conn, commands))
     thread.start()
 
-mpd_client.disconnect()
 s.close()
 

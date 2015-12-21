@@ -1,10 +1,14 @@
+from threading import Thread
 from uuid import UUID
+from queue import Queue, Empty
 
 
 class Commands:
-    def __init__(self, session, mpd):
+    max_concurrent_url_resolvers = 4
+
+    def __init__(self, session, tracklist):
         self.session = session
-        self.mpd = mpd
+        self.tracklist = tracklist
 
     @staticmethod
     def track_to_json(track):
@@ -44,141 +48,130 @@ class Commands:
         return result
 
     def search(self, query):
-        searches = {
-            "artists": self.session.search("artist", query),
-            "albums": self.session.search("album", query),
-            "playlists": self.session.search("playlist", query),
-            "tracks": self.session.search("track", query)
-        }
-        result = {"query": query}
-        # tracks
-        result["total_tracks"] = len(searches["tracks"].tracks)
-        result["tracks"] = []
-        for track in searches["tracks"].tracks:
-            result["tracks"].append(self.track_to_json(track))
-        # albums
-        result["total_albums"] = len(searches["albums"].albums)
-        result["albums"] = []
-        for album in searches["albums"].albums:
-            result["albums"].append({
-                "artist": album.artist.name,
-                "title": album.name,
-                "available": True,
-                "uri": album.id
-            })
-        # artists
-        result["total_artists"] = len(searches["artists"].artists)
-        result["artists"] = []
-        for artist in searches["artists"].artists:
-            result["artists"].append({
-                "artist": artist.name,
-                "uri": artist.id
-            })
-        # playlists
-        result["total_playlists"] = len(searches["playlists"].playlists)
-        result["playlists"] = []
-        for playlist in searches["playlists"].playlists:
-            playlist_id = int(UUID(playlist.id))
-            result["playlists"].append({
-                "name": playlist.name,
-                "uri": playlist_id
-            })
+        def execute_search():
+            while True:
+                try:
+                    kind = q.get(block=False)
+                    res = self.session.search(kind, query)
+                    result["total_" + query] = len(res)
+                    result[query] = res
+                except Empty:
+                    # nothing to do
+                    break
+            pass
 
+        q = Queue()
+        result = {"query": query}
+        for search_kind in ["artists", "albums", "playlists", "tracks"]:
+            q.put(search_kind)
+
+        for i in range(0, self.max_concurrent_url_resolvers):
+            t = Thread(target=execute_search)
+            t.start()
+
+        q.join()
         return result
 
     def status(self):
-        # PLAY {'consume': '0', 'mixrampdelay': '1.#QNAN0', 'state': 'play', 'random': '0', 'songid': '2', 'time': '11:176',
-        # 'audio': '44100:24:2', 'playlist': '10', 'song': '0', 'volume': '15', 'single': '0', 'playlistlength': '1', 'repeat': '0', 'xfade': '0', 'elapsed': '11.053', 'mixrampdb': '0.000000', 'bitrate': '128'}
+        status = "stopped"
+        if self.tracklist.current_playing:
+            status = "paused" if self.tracklist.pause else "playing"
 
-        # STOP {'xfade': '0', 'playlistlength': '1', 'song': '0', 'playlist': '10', 'mixrampdb': '0.000000', 'consume': '0', 'repeat': '0', 'volume': '-1', 'single': '0', 'mixrampdelay': '1.#QNAN0', 'random': '0', 'state': 'stop', 'songid': '2'}
-        # PAUS {'bitrate': '192', 'time': '76:224', 'mixrampdelay': '1.#QNAN0', 'single': '0', 'mixrampdb': '0.000000', 'elapsed': '76.344', 'xfade': '0', 'song': '1', 'repeat': '0', 'state': 'pause', 'songid': '3', 'volume': '-1', 'consume': '0', 'playlistlength': '2', 'random': '0', 'audio': '44100:24:2', 'playlist': '11'}
-        mpd_status = self.mpd.status()
-        state_map = {
-            "play": "playing",
-            "pause": "paused",
-            "stop": "stopped"
-        }
         result = {
-            "status": state_map[mpd_status["state"]],
-            "repeat": mpd_status["repeat"] == "1",
-            "shuffle": mpd_status["random"] == "1",
-            "total_tracks": int(mpd_status["playlistlength"])
+            "status": status,
+            "repeat": self.tracklist.repeat,
+            "shuffle": self.tracklist.shuffle,
+            "total_tracks": len(self.tracklist)
         }
-        if mpd_status["state"] != "stop":
+        if status != "stopped":
             duration = 0
             position = 0
             result.update({
-                "current_track": int(mpd_status["song"]),
-                "artist": "",
-                "title": "",
-                "album": "",
-                "duration": duration,
+                "current_track": self.tracklist.playing_track_index(),
+                "artist": self.tracklist.current_playing.artist.name,
+                "title": self.tracklist.current_playing.name,
+                "album": self.tracklist.current_playing.album.name,
+                "duration": self.tracklist.current_playing.duration,
                 "position": position,
-                "uri": "",  # todo
-                "popularity": 0  # todo
+                "uri": self.tracklist.current_playing.url,
+                "popularity": self.tracklist.current_playing.popularity
             })
 
         return result
 
     def idle(self):
-        self.mpd.idle()
-        return self.status()
+        # todo
+        pass
 
     def play_playlist(self, playlist_id):
         self.add_playlist(playlist_id)
-        self.mpd.play(1)
+        # todo flac player -> play
         return self.status()
 
     def clear_queue(self):
-        self.mpd.clear()
+        # todo flac player -> stop
+        self.tracklist.clear()
         return self.status()
 
     def add_playlist(self, playlist_id):
+        def update_track_uri():
+            while True:
+                try:
+                    current_track = q.get(block=False)
+                    current_track.url = self.session.get_media_url(current_track.id)
+                    q.task_done()
+                except Empty:
+                    # nothing to do
+                    break
+            pass
+
         playlist_guid = UUID(int=int(playlist_id))
-        self.mpd.command_list_ok_begin()
         tracks = self.session.get_playlist_tracks(playlist_guid)
+        q = Queue()
         for track in tracks:
-            url = self.session.get_media_url(track.id)
-            self.mpd.add(url)
-        self.mpd.command_list_end()
-        return {"total_tracks": len(self.mpd.playlistinfo())}
+            self.tracklist.add_track(track)
+            q.put(track)
+
+        for i in range(0, self.max_concurrent_url_resolvers):
+            t = Thread(target=update_track_uri)
+            t.start()
+
+        q.join()
+        return {"total_tracks": len(self.tracklist)}
 
     def add_track(self, playlist_id, track_id):
+        # todo get single track
         track_url = self.session.get_media_url(track_id)
-        mpd_track_id = self.mpd.addid(track_url)
-        self.mpd.addtagid(mpd_track_id, "Artist", "Dream Theater")
-        return {"total_tracks": len(self.mpd.playlistinfo())}
+        self.tracklist.add_track(track_url)
+        return {"total_tracks": len(self.tracklist)}
 
     def play(self):
-        self.mpd.play()
+        # todo flac player -> play
+        self.tracklist.play_next()
         return self.status()
 
     def goto_nb(self, track_nr):
-        self.mpd.play(int(track_nr) - 1)
+        # todo flac player -> switch track
+        self.tracklist.set_playing_item_by_index(track_nr - 1)
         return self.status()
 
     def repeat(self):
-        current_status = self.status()
-        toggled_repeat_value = not current_status["repeat"]
-        current_status["repeat"] = toggled_repeat_value
-        self.mpd.repeat(1 if toggled_repeat_value else 0)
-        return current_status
+        self.tracklist.toggle_repeat()
+        return self.status()
 
     def shuffle(self):
-        current_status = self.status()
-        toggled_shuffle_value = not current_status["shuffle"]
-        current_status["shuffle"] = toggled_shuffle_value
-        self.mpd.random(1 if toggled_shuffle_value else 0)
-        return current_status
+        self.tracklist.toggle_shuffle()
+        return self.status()
 
     def stop(self):
-        self.mpd.stop()
+        # todo flac player -> stop
+        self.tracklist.stop()
         return self.status()
 
     def goto_next(self):
-        self.mpd.next()
+        self.tracklist.play_next()
         return self.status()
 
     def goto_prev(self):
-        self.mpd.previous()
+        self.tracklist.play_prev()
         return self.status()

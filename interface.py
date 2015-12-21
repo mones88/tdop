@@ -2,7 +2,6 @@ import os
 import json
 import sys
 import commands
-from rx import Observable, Observer
 
 '''
     { "help",    CT_FUNC, { help, {CA_NONE}}, "list all available commands"},
@@ -101,31 +100,26 @@ accepted_params = {
 
 
 def read_socket_line(socket):
-    def on_subscribe(subscriber):
-        buffer = socket.recv(4096).decode()
-        buffering = True
-        while buffering:
-            if os.linesep in buffer:
-                (line, buffer) = buffer.split(os.linesep, 1)
-                subscriber.on_next(line)
+    buffer = socket.recv(4096).decode()
+    buffering = True
+    while buffering:
+        if os.linesep in buffer:
+            (line, buffer) = buffer.split(os.linesep, 1)
+            yield line
+        else:
+            more = socket.recv(4096).decode()
+            if not more:
+                buffering = False
             else:
-                more = socket.recv(4096).decode()
-                if not more:
-                    buffering = False
-                else:
-                    buffer += more
-        if buffer:
-            subscriber.on_next(buffer)
-        pass
-
-    return Observable.create(on_subscribe)
+                buffer += more
+    if buffer:
+        yield buffer
 
 
 def find_function_by_name(func_name):
     f = globals().get(func_name, None)
     if f is None:
         f = commands.Commands.__dict__.get(func_name, None)
-
     return f
 
 
@@ -135,7 +129,7 @@ def debug_msg(data):
 
 
 def handle_commands(conn, commands_instance):
-    def on_new_line(data):
+    for data in read_socket_line(conn):
         debug_msg(data)
         data = data.split()
         cmd = data[0] if len(data) > 0 else ""
@@ -160,11 +154,5 @@ def handle_commands(conn, commands_instance):
                 if result is not None:
                     json_string = json.dumps(result) + os.linesep
                     conn.sendall(json_string.encode())
-        pass
-
-    read_socket_line(conn).subscribe(on_next=on_new_line)
-
-
-
     # came out of loop
     conn.close()
