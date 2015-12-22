@@ -1,20 +1,65 @@
 from ctypes import *
-
-import math
-from queue import Queue
-from threading import *
-
+from multiprocessing import Manager, Process
 import libao
 import os
 
-aoformat = None
-__stop = False
-__pause = False
+# main process
+__player_process = None
+__manager = Manager()
+
+# shared
+__stop = None
+__pause = None
+
+# player process
+__aoformat = None
+__device = None
+__default_driver = None
+
+
+def flac_player_init():
+    global __player_process, __stop, __pause
+    __stop = __manager.Value("i", False)
+    __pause = __manager.Value("i", False)
+    __player_process = Process(target=__flac_process_init, args=(__stop, __pause,))
+    __player_process.start()
+
+
+def flac_player_dispose():
+    __player_process.terminate()
+    __manager.shutdown()
 
 
 def flac_player_stop():
-    __stop
+    global __stop
+    __stop = True
 
+
+def flac_player_toggle_pause():
+    global __pause
+    __pause = not __pause
+
+
+def __flac_process_init(stop_proxy, pause_proxy):
+    global __default_driver, __stop, __pause
+    __stop = stop_proxy
+    __pause = pause_proxy
+    libao.ao_initialize()
+    __default_driver = libao.ao_default_driver_id()
+
+    libflac = CDLL("libFLAC.so.8")
+    decoder = libflac.FLAC__stream_decoder_new()
+    flac_path = c_char_p(os.path.expanduser("~/test.flac").encode())
+
+    wc = WRITE_CALLBACK(write_callback)
+    mc = META_CALLBACK(metadata_callback)
+    ec = ERROR_CALLBACK(error_callback)
+    init_status = libflac.FLAC__stream_decoder_init_file(decoder, flac_path, wc, mc, ec, None)
+    if init_status == 0:
+        res = libflac.FLAC__stream_decoder_process_until_end_of_stream(decoder)
+        print("res =", res)
+    libao.ao_close(__device)
+    libao.ao_shutdown()
 
 class FLAC__StreamMetadata_StreamInfo(Structure):
     _fields_ = [("min_blocksize", c_uint),
@@ -61,9 +106,13 @@ ERROR_CALLBACK = CFUNCTYPE(None, POINTER(c_void_p), c_int, POINTER(c_void_p))
 
 def write_callback(decoder, frame, buffer, client_data):
     print("write callback")
+
+    while __pause.value:
+        pass
+
     blocksize = frame[0].header.blocksize
     channels = frame[0].header.channels
-    decoded_size = int(blocksize * channels * (aoformat.bits / 8))
+    decoded_size = int(blocksize * channels * (__aoformat.bits / 8))
     aobuffer = []
     for i in range(0, blocksize):
         left_channel = buffer[0][i]
@@ -75,70 +124,25 @@ def write_callback(decoder, frame, buffer, client_data):
         aobuffer.append((right_channel >> 8) & 0xff)
         #  aobuffer.append((right_channel >> 16) & 0xff)
 
-    main_q.put(item=("write_callback", aobuffer, decoded_size,))
+    res = libao.ao_play(__device, aobuffer, decoded_size)
+    if res == 0:
+        print("ao fail")
     return 0
 
 
 def metadata_callback(decoder, metadata, client_data):
-    global aoformat
-    global device
+    global __aoformat, __device
     print("metadata")
-    aoformat = libao.ao_sample_format()
-    aoformat.bits = metadata[0].data.stream_info.bits_per_sample
-    aoformat.channels = metadata[0].data.stream_info.channels
-    aoformat.rate = metadata[0].data.stream_info.sample_rate
-    aoformat.byte_format = 1
-    print("format", aoformat.bits, aoformat.channels, aoformat.rate)
-    main_q.put(item=("metadata_callback", None, None,))
+    __aoformat = libao.ao_sample_format()
+    __aoformat.bits = metadata[0].data.stream_info.bits_per_sample
+    __aoformat.channels = metadata[0].data.stream_info.channels
+    __aoformat.rate = metadata[0].data.stream_info.sample_rate
+    __aoformat.byte_format = 1
+    print("format", __aoformat.bits, __aoformat.channels, __aoformat.rate)
+    __device = libao.ao_open_live(__default_driver, __aoformat, None)
     pass
 
 
 def error_callback(decoder, status, client_data):
     print("error")
     pass
-
-
-def foo():
-    res = libflac.FLAC__stream_decoder_process_until_end_of_stream(decoder)
-    print("res =", res)
-    pass
-
-
-def boo():
-    global device
-    while True:
-        src, buff, decoded_sz = main_q.get()
-        if src == "metadata_callback":
-            device = libao.ao_open_live(default_driver, aoformat, None)
-        else:
-            try:
-                res = libao.ao_play(device, buff, decoded_sz)
-                if res == 0:
-                    print("ao fail")
-            except Exception as ex:
-                print(ex)
-        main_q.task_done()
-
-    libao.ao_close(device)
-    libao.ao_shutdown()
-
-
-main_q = Queue(1)
-
-libao.ao_initialize()
-default_driver = libao.ao_default_driver_id()
-device = None
-
-libflac = CDLL("libFLAC.so.8")
-decoder = libflac.FLAC__stream_decoder_new()
-flac_path = c_char_p(os.path.expanduser("~/test.flac").encode())
-
-wc = WRITE_CALLBACK(write_callback)
-mc = META_CALLBACK(metadata_callback)
-ec = ERROR_CALLBACK(error_callback)
-init_status = libflac.FLAC__stream_decoder_init_file(decoder, flac_path, wc, mc, ec, None)
-if init_status == 0:
-    t = Thread(target=foo, name="FLACThread")
-    t.start()
-    t2 = Thread(target=boo, name="AOThread")
-    t2.start()
