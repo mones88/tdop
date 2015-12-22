@@ -1,44 +1,50 @@
 import math
 import ctypes
+import multiprocessing
+import os
+from threading import Thread
 
 import libao
 
-format = libao.ao_sample_format()
-format.bits = 16
-format.channels = 2
-format.rate = 44100
-format.byte_format = 1
 
-libao.ao_initialize()
-default_driver = libao.ao_default_driver_id()
-device = libao.ao_open_live(default_driver, format, None)
+def play_440A():
+    info("fff")
+    libao.ao_initialize()
+    fmt = libao.ao_sample_format()
+    fmt.bits = 16
+    fmt.channels = 2
+    fmt.rate = 44100
+    fmt.byte_format = 1
 
-'''
-/* -- Play some stuff -- */
-	buf_size = format.bits/8 * format.channels * format.rate;
-	buffer = calloc(buf_size,
-			sizeof(char));
+    default_driver = libao.ao_default_driver_id()
+    device = libao.ao_open_live(default_driver, fmt, None)
 
-	for (i = 0; i < format.rate; i++) {
-		sample = (int)(0.75 * 32768.0 *
-			sin(2 * M_PI * freq * ((float) i/format.rate)));
+    size = int(fmt.bits / 8 * fmt.channels * fmt.rate)
+    buffer = []
+    for i in range(0, fmt.rate * 5 - 1):
+        sample = int((0.75 * 32768.0 * math.sin(2 * math.pi * 440.0 * i / fmt.rate)))
+        buffer.append(sample & 0xff)
+        buffer.append((sample >> 8) & 0xff)
+        buffer.append(sample & 0xff)
+        buffer.append((sample >> 8) & 0xff)
 
-		/* Put the same stuff in left and right channel */
-		buffer[4*i] = buffer[4*i+2] = sample & 0xff;
-		buffer[4*i+1] = buffer[4*i+3] = (sample >> 8) & 0xff;
-	}
-	ao_play(device, buffer, buf_size);
-'''
-size = int(format.bits / 8 * format.channels * format.rate)
-buffer = []
-for i in range(0, format.rate * 5 - 1):
-    sample = int((0.75 * 32768.0 * math.sin(2 * math.pi * 440.0 * i / format.rate)))
-    buffer.append(sample & 0xff)
-    buffer.append((sample >> 8) & 0xff)
-    buffer.append(sample & 0xff)
-    buffer.append((sample >> 8) & 0xff)
+    res = libao.ao_play(device, buffer, size)
 
-res = libao.ao_play(device, buffer, size)
+    libao.ao_close(device)
+    libao.ao_shutdown()
+    print("ended")
 
-libao.ao_close(device)
-libao.ao_shutdown()
+
+def info(title):
+    print(title)
+    print('module name:', __name__)
+    print('parent process:', os.getppid())
+    print('process id:', str(multiprocessing.current_process().pid))
+
+
+if __name__ == '__main__':
+    info("main line")
+    p = multiprocessing.Process(target=play_440A)
+    p.start()
+    print("started")
+    p.join()
