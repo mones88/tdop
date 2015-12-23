@@ -1,5 +1,7 @@
 from ctypes import *
 from multiprocessing import Manager, Process
+from time import sleep
+
 import libao
 import os
 
@@ -19,8 +21,8 @@ __default_driver = None
 
 def flac_player_init():
     global __player_process, __stop, __pause
-    __stop = __manager.Value("i", False)
-    __pause = __manager.Value("i", False)
+    __stop = __manager.Value(c_bool, False)
+    __pause = __manager.Value(c_bool, False)
     __player_process = Process(target=__flac_process_init, args=(__stop, __pause,))
     __player_process.start()
 
@@ -31,13 +33,12 @@ def flac_player_dispose():
 
 
 def flac_player_stop():
-    global __stop
-    __stop = True
+    __stop.set(True)
+    __pause.set(False)
 
 
 def flac_player_toggle_pause():
-    global __pause
-    __pause = not __pause
+    __pause.set(not __pause.get())
 
 
 def __flac_process_init(stop_proxy, pause_proxy):
@@ -107,8 +108,12 @@ ERROR_CALLBACK = CFUNCTYPE(None, POINTER(c_void_p), c_int, POINTER(c_void_p))
 def write_callback(decoder, frame, buffer, client_data):
     print("write callback")
 
-    while __pause.value:
+    while __pause.get():
+        sleep(0.5)
         pass
+
+    if __stop.get():
+        return 1
 
     blocksize = frame[0].header.blocksize
     channels = frame[0].header.channels
