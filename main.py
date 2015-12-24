@@ -7,6 +7,7 @@ import tidalapi
 import commands
 import interface
 import tracklist
+import flacplayer
 
 try:
     configFilePath = os.path.expanduser("~/.config/tdop/tdopd.conf")

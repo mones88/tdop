@@ -15,9 +15,11 @@ class _DownloadThread(Thread):
         print("download of track started")
         if os.path.exists(self.dest_path):
             os.remove(self.dest_path)
-        req = urllib.Request(self.track.url)
+        # req = urllib.Request(self.track.url)
         # req.headers['Range'] = 'bytes=%s-%s' % (start, end)
-        urllib.urlretrieve(req, self.dest_path)
+        urllib.request.urlretrieve(self.track.url, self.dest_path)
+        # g = urllib.request.urlopen(self.track.url).read()
+        # open(self.dest_path, "wb").write(g)
 
 
 def downloader_begin_download(track):

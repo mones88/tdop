@@ -48,9 +48,12 @@ def __flac_process_init(stop_proxy, pause_proxy):
     libao.ao_initialize()
     __default_driver = libao.ao_default_driver_id()
 
+    while not os.path.exists("/tmp/tdop_current_track.flac"):
+        sleep(0.5)
+
     libflac = CDLL("libFLAC.so.8")
     decoder = libflac.FLAC__stream_decoder_new()
-    flac_path = c_char_p(os.path.expanduser("~/test.flac").encode())
+    flac_path = c_char_p("/tmp/tdop_current_track.flac".encode()) # c_char_p(os.path.expanduser("~/test.flac").encode())
 
     wc = WRITE_CALLBACK(write_callback)
     mc = META_CALLBACK(metadata_callback)
