@@ -1,7 +1,7 @@
 from threading import Thread
 from uuid import UUID
 from queue import Queue, Empty
-
+from downloader import *
 
 class Commands:
     max_concurrent_url_resolvers = 4
@@ -147,7 +147,8 @@ class Commands:
 
     def play(self):
         # todo flac player -> play
-        self.tracklist.play_next()
+        track = self.tracklist.play_next()
+        downloader_begin_download(track)
         return self.status()
 
     def goto_nb(self, track_nr):
