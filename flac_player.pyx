@@ -44,20 +44,22 @@ cdef void error(const FLAC__StreamDecoder *decoder, FLAC__StreamDecoderErrorStat
     print("ERROR")
     pass
 
+def play(flac_path):
+    cdef FLAC__StreamDecoder *decoder = FLAC__stream_decoder_new()
+    print("decoder instance:", "NULL" if decoder == NULL else "OK")
+    cdef FLAC__StreamDecoderInitStatus status = FLAC__stream_decoder_init_file(decoder, flac_path, write, metadata, error, NULL)
+    cdef FLAC__bool result = 0
+    if status == FLAC__STREAM_DECODER_INIT_STATUS_OK:
+        print("decoder initialized")
+        result = FLAC__stream_decoder_process_until_end_of_stream(decoder)
+    else:
+        print("decoder failed to initialize")
+
+def dispose():
+    cao.ao_close(device)
+    cao.ao_shutdown()
+
 cdef cao.ao_device *device = NULL
 cao.ao_initialize()
 cdef int default_driver = cao.ao_default_driver_id()
 print("default driver", default_driver)
-
-cdef FLAC__StreamDecoder *decoder = FLAC__stream_decoder_new()
-print("decoder instance:", "NULL" if decoder == NULL else "OK")
-cdef FLAC__StreamDecoderInitStatus status = FLAC__stream_decoder_init_file(decoder, "/home/mones/test.flac", write, metadata, error, NULL)
-cdef FLAC__bool result = 0
-if status == FLAC__STREAM_DECODER_INIT_STATUS_OK:
-    print("decoder initialized")
-    result = FLAC__stream_decoder_process_until_end_of_stream(decoder)
-else:
-    print("decoder failed to initialize")
-
-cao.ao_close(device)
-cao.ao_shutdown()

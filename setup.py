@@ -3,8 +3,8 @@ from Cython.Build import cythonize
 from distutils.extension import Extension
 
 ext_modules = [
-    Extension("ctest",
-              sources=["ctest.pyx"],
+    Extension("flac_player",
+              sources=["flac_player.pyx"],
               libraries=["ao", "m", "FLAC"]
               )
 ]
